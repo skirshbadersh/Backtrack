@@ -19,7 +19,8 @@ Requires Node 22.18 or later. There are no runtime dependencies.
 npm install        # dev dependencies only (typescript, @types/node, playwright-core)
 npm run serve      # web review UI at http://127.0.0.1:4317/, offline sandbox
 npm run demo       # the same six beats as a terminal walk-through
-npm test           # 67 engine, connector, API and SDK tests mapped to the PRD acceptance criteria
+npm test           # 86 engine, connector, API, SDK, hook and telemetry tests
+npm run test:pack  # packs the tarball, installs it in an empty project, runs `npx bt-demo`
 npm run test:e2e   # 11 browser checks of the review UI (needs Chromium; see e2e/review.e2e.ts)
 ```
 
@@ -47,7 +48,7 @@ GITHUB_TOKEN=... npm run demo -- --repo you/scratch-repo --yes
 # or GitHub App auth: BT_GITHUB_APP_ID, BT_GITHUB_APP_PRIVATE_KEY_FILE, BT_GITHUB_INSTALLATION_ID
 ```
 
-`npm run build` compiles to `dist/`, and the `bt-demo` bin is the future `npx` entry point.
+`npm run build` compiles to `dist/`. `npm pack` produces the package `npx bt-demo …` will run: about 70 kB, zero runtime dependencies, verified by `npm run test:pack`. It stays private, and the product name lives only in `src/brand.ts`, until a public name is cleared.
 
 The demo follows the PRD's demo order:
 
@@ -87,6 +88,14 @@ bt-demo status <transaction-id>                # exit 5 while still waiting
 `examples/triage-agent.ts` is a complete agent: run `npm run serve`, then `node examples/triage-agent.ts`, and review it in the browser.
 
 Wire format: `POST /api/change-sets` and `GET /api/change-sets/:id`, typed in `src/sdk/protocol.ts`.
+
+## Claude Code hook (experimental)
+
+`bt-demo hook claude-code` is a `PreToolUse` hook that routes Claude Code's GitHub issue writes (`mcp__github__issue_write`, `mcp__github__add_issue_comment`) through review. It always denies the original tool call: on approval, the engine performs the reviewed write and verifies it, and the deny reason tells Claude the outcome. It fails closed on anything it can't handle. Setup and limits are in [`adapters/claude-code/README.md`](adapters/claude-code/README.md), and dogfooding notes go in [`docs/dogfood-log.md`](docs/dogfood-log.md).
+
+## Telemetry (opt-in)
+
+Off by default. `bt-demo telemetry on`, or `--telemetry` for one run, sends anonymous milestone events, so the PRD's validation thresholds (distinct runs, own-repo runs, repeat users) can be counted. No repository names, titles, content or tokens are ever sent. Details are in [`docs/telemetry.md`](docs/telemetry.md).
 
 ## What is real and what is simulated
 
@@ -148,6 +157,9 @@ src/validate.ts           fail-closed change-set validation
 src/demo/                 seeded 12-action change set and the six-beat demo
 src/server/               review API (api.ts), sandbox world + simulation controls, HTTP server
 src/sdk/                  agent SDK: ReviewClient, wire protocol, submit/status CLI commands
+src/adapters/claude-code/ PreToolUse hook (setup docs in adapters/claude-code/)
+src/telemetry/            opt-in telemetry: allowlisted schema, client, reference collector
+src/brand.ts              the product name, in one place (codename until the rename)
 examples/                 a minimal agent built on the SDK
 web/                      review UI: index.html, app.css, app.js (no framework, no build step)
 e2e/                      browser walk-through of the review UI

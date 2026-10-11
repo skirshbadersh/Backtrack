@@ -11,10 +11,13 @@ import { RestGitHub, type TokenProvider } from "./github/rest.ts";
 import { startServer } from "./server/serve.ts";
 import { statusCommand, submitCommand } from "./sdk/cli-commands.ts";
 import { claudeCodeHookCommand } from "./adapters/claude-code/command.ts";
+import { configDir, setTelemetry, telemetry } from "./telemetry/client.ts";
+import { createCollector } from "./telemetry/collector.ts";
+import type { OutcomeValue } from "./telemetry/schema.ts";
 
 const HELP = `${BRAND.productName}, Phase 0 prototype
 
-Usage: ${BRAND.cli} <demo|serve|submit|status|hook> [options]
+Usage: ${BRAND.cli} <demo|serve|submit|status|hook|telemetry> [options]
 
   demo   Runs the Phase 0 demo in the terminal: grouped review, exactly-once
          commit under retry, post-write verification, reviewable compensation
@@ -26,6 +29,9 @@ Usage: ${BRAND.cli} <demo|serve|submit|status|hook> [options]
                     Exit codes: 0 verified (or submitted without --wait),
                     3 decided but not verified, 4 timed out, 1 error.
   status <id>       Prints a transaction's agent-facing status (exit 5 = still waiting).
+  telemetry on|off|status
+                    Opt-in usage telemetry for demo/serve. Off by default; nothing
+                    identifying is ever sent (see docs/telemetry.md).
   hook claude-code  Claude Code PreToolUse hook (experimental): routes GitHub issue
                     writes through review. Reads the hook JSON on stdin. See
                     adapters/claude-code/README.md.
@@ -49,6 +55,7 @@ Options:
   --wait                  submit: wait for the decision
   --timeout s             submit --wait: give up after s seconds (default 1800)
   --json                  submit/status: machine-readable output
+  --telemetry             demo/serve: send opt-in telemetry for this run (env BT_TELEMETRY=1)
   -h, --help              Show this help
 
 Authentication for live mode, in order of preference:
@@ -74,6 +81,8 @@ async function main(argv: string[]): Promise<number> {
       wait: { type: "boolean", default: false },
       timeout: { type: "string" },
       json: { type: "boolean", default: false },
+      telemetry: { type: "boolean", default: false },
+      out: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -84,6 +93,32 @@ async function main(argv: string[]): Promise<number> {
       return 1;
     }
     return claudeCodeHookCommand();
+  }
+
+  if (command === "telemetry") {
+    const sub = positionals[1] ?? "status";
+    if (sub === "on" || sub === "off") {
+      setTelemetry(sub === "on");
+      console.log(`Telemetry ${sub}. Choice saved in ${configDir()}.`);
+      return 0;
+    }
+    if (sub !== "status") {
+      console.error("usage: telemetry on|off|status");
+      return 1;
+    }
+    const t = telemetry({ notify: () => {} });
+    console.log(`Telemetry is ${t.enabled ? "on" : "off"} (${t.reason}).${t.enabled ? ` Collector: ${t.url ?? "none configured, nothing is sent"}.` : ""}`);
+    return 0;
+  }
+
+  // Undocumented on purpose: the collector runs on the landing-page host, not on users' machines.
+  if (command === "collector") {
+    const out = values.out ?? "telemetry-events.jsonl";
+    const server = createCollector(out);
+    await new Promise<void>((resolve) => server.listen(Number(values.port ?? 4318), values.host ?? "127.0.0.1", resolve));
+    const address = server.address();
+    console.log(`Telemetry collector on port ${typeof address === "object" && address ? address.port : "?"}, appending to ${out}`);
+    return new Promise<number>(() => {});
   }
 
   if (values.help || !["demo", "serve", "submit", "status"].includes(command)) {
@@ -113,6 +148,9 @@ async function main(argv: string[]): Promise<number> {
     live = { transport: new RestGitHub({ token: tokenFromEnv() }), owner, repo, assignee: values.assignee ?? owner };
   }
 
+  const usage = telemetry({ flag: values.telemetry });
+  const mode = live ? "live" : "sandbox";
+
   if (command === "serve") {
     let liveEngine: { engine: Engine; repo: string } | undefined;
     if (live) {
@@ -130,13 +168,31 @@ async function main(argv: string[]): Promise<number> {
       ...((values["agent-token"] ?? process.env.BT_AGENT_TOKEN) ? { agentToken: (values["agent-token"] ?? process.env.BT_AGENT_TOKEN)! } : {}),
       ...(liveEngine ? { live: liveEngine } : {}),
     });
-    console.log(`Review UI: ${url}  (${liveEngine ? `live against ${liveEngine.repo}` : "sandbox, no network calls"}; Ctrl+C to stop)`);
+    console.log(`Review UI: ${url}  (${liveEngine ? `live against ${liveEngine.repo}` : `sandbox, no GitHub calls${usage.enabled ? "; telemetry on" : ""}`}; Ctrl+C to stop)`);
+    await usage.send({ event: "serve_started", mode });
     return new Promise<number>(() => {});
   }
 
-  const result = await runDemo({
-    ...(live ? { live } : {}),
-    ...(values.unassignable ? { unassignable: values.unassignable } : live ? { unassignable: "octocat" } : {}),
+  await usage.send({ event: "demo_started", mode });
+  const started = Date.now();
+  let result: Awaited<ReturnType<typeof runDemo>>;
+  try {
+    result = await runDemo({
+      ...(live ? { live } : {}),
+      ...(values.unassignable ? { unassignable: values.unassignable } : live ? { unassignable: "octocat" } : {}),
+    });
+  } catch (err) {
+    await usage.send({ event: "demo_failed", mode });
+    throw err;
+  }
+  await usage.send({
+    event: "demo_completed",
+    mode,
+    outcomes: result.outcomes as Record<string, OutcomeValue>,
+    duplicate_writes: result.duplicateWrites,
+    conflict_writes_before_stop: result.conflictWritesBeforeStop,
+    ledger_intact: result.ledgerIntact,
+    duration_ms: Date.now() - started,
   });
   if (values["ledger-out"]) {
     writeFileSync(values["ledger-out"], result.engine.ledger.toJSONL() + "\n");

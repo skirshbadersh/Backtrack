@@ -51,7 +51,7 @@ Ordered by dependency. Items 1–5 need no name, so they can start now.
 - Make `npm pack` produce a working tarball (`dist` + `web`, a `prepare` build) and test `npx ./pkg.tgz demo` and `serve` in CI.
 - Keep the product name in one constant (`src/brand.ts`) used by the CLI, page title and User-Agent, so the rename is a single edit.
 
-**5. Opt-in CLI telemetry (C, ~1 day).** Needed for two validation metrics: "3 runs against own repo" and "2 people run it twice".
+**5. Opt-in CLI telemetry (C, ~1 day). ✅ Done Oct 11:** `src/telemetry`, `docs/telemetry.md`, and a reference collector. It sends nothing until a collector URL exists. Needed for two validation metrics: "3 runs against own repo" and "2 people run it twice".
 - It is off by default. A `--telemetry` flag or env variable turns it on, and the first run says what is sent.
 - Events: `demo_started`, `demo_completed` with mode (sandbox/live), beat outcomes, an anonymous install id and the version. No payloads, repo names, tokens or titles.
 - Collector: a tiny endpoint on the same host as the landing page (item 7). Test that no secret or payload field can be emitted.
