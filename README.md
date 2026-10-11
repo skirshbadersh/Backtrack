@@ -19,7 +19,7 @@ Requires Node 22.18 or later. There are no runtime dependencies.
 npm install        # dev dependencies only (typescript, @types/node, playwright-core)
 npm run serve      # web review UI at http://127.0.0.1:4317/, offline sandbox
 npm run demo       # the same six beats as a terminal walk-through
-npm test           # 53 engine, connector and API tests mapped to the PRD acceptance criteria
+npm test           # 67 engine, connector, API and SDK tests mapped to the PRD acceptance criteria
 npm run test:e2e   # 11 browser checks of the review UI (needs Chromium; see e2e/review.e2e.ts)
 ```
 
@@ -57,6 +57,36 @@ The demo follows the PRD's demo order:
 4. **Verification.** Every write returned 2xx, but one assignee can't be assigned in the repository, so the assignment is dropped. The reread catches it and the transaction ends up `verification_failed`, not `verified`.
 5. **Reviewable compensation.** Reverting the title is a new transaction that goes through the same review. It lists the effects it can't remove.
 6. **Stale-state gate.** A teammate adds a label between approval and commit. The engine stops before any write, shows previewed/current/proposed side by side, then rebases, gets a new approval and commits.
+
+## Agent SDK
+
+Agents submit change sets and wait for the human decision through a zero-dependency TypeScript client (`src/sdk`):
+
+```ts
+import { ReviewClient } from "./src/sdk/index.ts";
+
+const client = new ReviewClient({ baseUrl: "http://127.0.0.1:4317", token: process.env.BT_AGENT_TOKEN });
+const { transaction_id } = await client.submit(changeSet);      // validated locally first
+const decision = await client.waitForDecision(transaction_id);  // polls until the reviewer is done
+if (decision.ok) { /* verified: GitHub is in the approved state */ }
+```
+
+- **`ok` is true only for `verified`.** The other outcomes are `not_verified` (committed, but the reread disagrees), `rejected` (with the reviewer's reason), `expired`, `compensated` and `timeout`. Treat every one of them as "the write did not happen as proposed".
+- **Fails closed.** The SDK never writes to GitHub; the server executes only what a reviewer approved. An unreachable server throws `SdkError("unreachable")` and nothing is written.
+- **Retries are safe.** Resubmitting the identical change set returns the existing transaction (`deduplicated: true`). Use a stable `transaction_id` per logical request.
+- **Reviewer edits are visible.** The receipt in `decision.status.receipt` shows proposed vs approved parameters for each action, and `rejected_action_ids` lists what was never sent.
+- **Auth.** `serve --agent-token <t>` (or `BT_AGENT_TOKEN`) makes the agent endpoints require `Authorization: Bearer <t>`. The server refuses to listen beyond loopback without one; the reviewer UI has no login yet (roadmap M3).
+
+The same flow from a shell, for agents that aren't written in TypeScript:
+
+```sh
+bt-demo submit change-set.json --wait --json   # exit 0 verified · 3 decided, not verified · 4 timeout · 1 error
+bt-demo status <transaction-id>                # exit 5 while still waiting
+```
+
+`examples/triage-agent.ts` is a complete agent: run `npm run serve`, then `node examples/triage-agent.ts`, and review it in the browser.
+
+Wire format: `POST /api/change-sets` and `GET /api/change-sets/:id`, typed in `src/sdk/protocol.ts`.
 
 ## What is real and what is simulated
 
@@ -117,6 +147,8 @@ src/state.ts              explicit state-machine transitions
 src/validate.ts           fail-closed change-set validation
 src/demo/                 seeded 12-action change set and the six-beat demo
 src/server/               review API (api.ts), sandbox world + simulation controls, HTTP server
+src/sdk/                  agent SDK: ReviewClient, wire protocol, submit/status CLI commands
+examples/                 a minimal agent built on the SDK
 web/                      review UI: index.html, app.css, app.js (no framework, no build step)
 e2e/                      browser walk-through of the review UI
 docs/PRD.md               product requirements (v4.1)

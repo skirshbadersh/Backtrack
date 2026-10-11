@@ -8,14 +8,20 @@ import { githubAppTokenProvider } from "./github/app-auth.ts";
 import { GitHubIssuesConnector } from "./github/connector.ts";
 import { RestGitHub, type TokenProvider } from "./github/rest.ts";
 import { startServer } from "./server/serve.ts";
+import { statusCommand, submitCommand } from "./sdk/cli-commands.ts";
 
-const HELP = `Usage: bt-demo <demo|serve> [options]
+const HELP = `Usage: bt-demo <demo|serve|submit|status> [options]
 
   demo   Runs the Phase 0 demo in the terminal: grouped review, exactly-once
          commit under retry, post-write verification, reviewable compensation
          and the stale-state gate.
   serve  Starts the web review UI (default http://127.0.0.1:4317/) with the
          seeded change set and simulation controls.
+  submit <file|->   Submits a change set (JSON) for review, as an agent would.
+                    With --wait, blocks until the reviewer's work is done.
+                    Exit codes: 0 verified (or submitted without --wait),
+                    3 decided but not verified, 4 timed out, 1 error.
+  status <id>       Prints a transaction's agent-facing status (exit 5 = still waiting).
 
 Without --repo it runs against an in-memory GitHub simulation and makes no
 network calls. With --repo it creates four issues in that repository and
@@ -30,6 +36,12 @@ Options:
   --port n                Port for serve (default 4317)
   --host addr             Address for serve (default 127.0.0.1)
   --reviewer name         Reviewer identity shown and recorded by serve (default @reviewer)
+  --agent-token t         Require this bearer token on agent endpoints (serve; env BT_AGENT_TOKEN)
+  --server url            Review server for submit/status (default http://127.0.0.1:4317, env BT_SERVER)
+  --token t               Bearer token for submit/status (env BT_AGENT_TOKEN)
+  --wait                  submit: wait for the decision
+  --timeout s             submit --wait: give up after s seconds (default 1800)
+  --json                  submit/status: machine-readable output
   -h, --help              Show this help
 
 Authentication for live mode, in order of preference:
@@ -49,13 +61,30 @@ async function main(argv: string[]): Promise<number> {
       port: { type: "string" },
       host: { type: "string" },
       reviewer: { type: "string" },
+      "agent-token": { type: "string" },
+      server: { type: "string" },
+      token: { type: "string" },
+      wait: { type: "boolean", default: false },
+      timeout: { type: "string" },
+      json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
   const command = positionals[0] ?? "demo";
-  if (values.help || (command !== "demo" && command !== "serve")) {
+  if (values.help || !["demo", "serve", "submit", "status"].includes(command)) {
     console.log(HELP);
     return values.help ? 0 : 1;
+  }
+
+  if (command === "submit" || command === "status") {
+    const agent = {
+      server: values.server ?? process.env.BT_SERVER ?? "http://127.0.0.1:4317",
+      ...((values.token ?? process.env.BT_AGENT_TOKEN) ? { token: (values.token ?? process.env.BT_AGENT_TOKEN)! } : {}),
+      wait: values.wait,
+      ...(values.timeout ? { timeoutSec: Number(values.timeout) } : {}),
+      json: values.json,
+    };
+    return command === "submit" ? submitCommand(positionals[1], agent) : statusCommand(positionals[1], agent);
   }
 
   let live: DemoOptions["live"];
@@ -83,6 +112,7 @@ async function main(argv: string[]): Promise<number> {
       ...(values.port ? { port: Number(values.port) } : {}),
       ...(values.host ? { host: values.host } : {}),
       ...(values.reviewer ? { reviewer: values.reviewer } : {}),
+      ...((values["agent-token"] ?? process.env.BT_AGENT_TOKEN) ? { agentToken: (values["agent-token"] ?? process.env.BT_AGENT_TOKEN)! } : {}),
       ...(liveEngine ? { live: liveEngine } : {}),
     });
     console.log(`Review UI: ${url}  (${liveEngine ? `live against ${liveEngine.repo}` : "sandbox, no network calls"}; Ctrl+C to stop)`);

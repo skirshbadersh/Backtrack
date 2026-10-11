@@ -36,7 +36,7 @@ Ordered by dependency. Items 1–5 need no name, so they can start now.
 - C: document least privilege for each endpoint in `docs/github-permissions.md`, as the PRD asks ("permission sets confirmed per endpoint").
 - Code: `src/github/rest.ts`, `src/github/app-auth.ts`, `src/demo/run.ts`.
 
-**2. Typed SDK + submit CLI (C, ~1.5 days).** The PRD keeps the "typed SDK / CLI" in prototype scope.
+**2. Typed SDK + submit CLI (C, ~1.5 days). ✅ Done Oct 11:** `src/sdk`, `bt-demo submit/status`, agent bearer token, `examples/triage-agent.ts`. The PRD keeps the "typed SDK / CLI" in prototype scope.
 - `src/sdk/client.ts`: `submit(changeSet)`, `waitForDecision(id, {timeoutMs})`, `getReceipt(id)`. It polls `GET /api/tx/:id` and fails closed (unreachable server → the write never happens). Zero dependencies.
 - Agent auth for the API: a per-workspace bearer token checked in `src/server/api.ts`. It is only needed before the server is reachable beyond loopback.
 - CLI: `bt-demo submit file.json [--wait]`, which prints the decision and receipt.

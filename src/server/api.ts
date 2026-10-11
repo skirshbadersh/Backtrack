@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
@@ -6,6 +7,7 @@ import type { Engine } from "../engine.ts";
 import { EngineError } from "../errors.ts";
 import { GitHubHttpError } from "../github/transport.ts";
 import { Ledger } from "../ledger.ts";
+import { outcomeOf, type AgentStatus, type SubmitResponse } from "../sdk/protocol.ts";
 import type { Conflict, Transaction } from "../types.ts";
 import type { Sandbox, SandboxControl } from "./sandbox.ts";
 
@@ -16,6 +18,8 @@ export interface ApiOptions {
   reviewer: string;
   mode: { kind: "sandbox" } | { kind: "live"; repo: string };
   webRoot: string;
+  /** When set, the agent endpoints (/api/change-sets) require `Authorization: Bearer <token>`. */
+  agentToken?: string;
 }
 
 class HttpError extends Error {
@@ -45,6 +49,7 @@ export function createHandler(options: ApiOptions) {
       const url = new URL(req.url ?? "/", "http://localhost");
       if (url.pathname.startsWith("/api/")) {
         if (req.method !== "GET") assertSameOriginJson(req);
+        if (url.pathname.startsWith("/api/change-sets") && options.agentToken) assertAgentToken(req, options.agentToken);
         const body = req.method === "POST" ? await readJson(req) : {};
         const result = await route(options, req.method ?? "GET", url.pathname, body);
         return send(res, 200, result);
@@ -71,10 +76,15 @@ async function route(o: ApiOptions, method: string, path: string, body: Record<s
     };
   }
 
-  // The typed submission endpoint agents (or the SDK) call.
-  if (method === "POST" && first === "change-sets" && parts.length === 1) {
-    const { transaction, deduplicated } = await engine.submit(body);
-    return { transaction_id: transaction.id, status: transaction.status, deduplicated };
+  // Agent endpoints, called through the SDK: submit a change set, then poll its status.
+  if (first === "change-sets") {
+    if (method === "POST" && parts.length === 1) {
+      const { transaction, deduplicated } = await engine.submit(body);
+      const res: SubmitResponse = { transaction_id: transaction.id, status: transaction.status, deduplicated };
+      return res;
+    }
+    if (method === "GET" && id && parts.length === 2) return agentStatus(engine, id);
+    throw new HttpError(404, "not_found", "no such endpoint");
   }
 
   if (first === "sandbox" && method === "POST" && parts.length === 2) {
@@ -125,6 +135,27 @@ async function route(o: ApiOptions, method: string, path: string, body: Record<s
     default:
       throw new HttpError(404, "not_found", "no such endpoint");
   }
+}
+
+/** What an agent may know about its transaction: outcome, reviewer decisions and the receipt. */
+export function agentStatus(engine: Engine, id: string): AgentStatus {
+  const tx = engine.get(id);
+  const rev = tx.revisions.at(-1)!;
+  const events = engine.ledger.list(id);
+  const rejection = [...events].reverse().find((e) => e.type === "transaction_rejected");
+  const outcome = outcomeOf(tx.status);
+  return {
+    transaction_id: tx.id,
+    kind: tx.kind,
+    status: tx.status,
+    outcome,
+    ok: outcome === "verified",
+    revision: rev.number,
+    rejection_reason: rejection && typeof rejection.data.reason === "string" && rejection.data.reason ? rejection.data.reason : null,
+    conflicts: tx.status === "conflicted" ? lastConflicts(events) : [],
+    receipt: tx.receipt ?? null,
+    rejected_action_ids: tx.receipt?.rejected_action_ids ?? rev.actions.filter((a) => rev.decisions[a.id] === "reject").map((a) => a.id),
+  };
 }
 
 /** Everything the review screen needs about one transaction, in one response. */
@@ -214,6 +245,15 @@ function toHttpError(err: unknown): HttpError {
   if (err instanceof SyntaxError) return new HttpError(400, "bad_request", "request body is not valid JSON");
   console.error(err);
   return new HttpError(500, "internal", "unexpected server error");
+}
+
+function assertAgentToken(req: IncomingMessage, expected: string): void {
+  const header = req.headers.authorization ?? "";
+  const given = Buffer.from(header.startsWith("Bearer ") ? header.slice(7) : "");
+  const want = Buffer.from(expected);
+  if (given.length !== want.length || !timingSafeEqual(given, want)) {
+    throw new HttpError(401, "unauthorized", "agent endpoints need a valid bearer token");
+  }
 }
 
 function assertSameOriginJson(req: IncomingMessage): void {
