@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__github__issue_write|mcp__github__add_issue_comment",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /path/to/Backtrack/src/cli.ts hook claude-code",
+            "timeout": 600,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

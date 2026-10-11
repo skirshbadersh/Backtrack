@@ -49,7 +49,7 @@ export function createHandler(options: ApiOptions) {
       const url = new URL(req.url ?? "/", "http://localhost");
       if (url.pathname.startsWith("/api/")) {
         if (req.method !== "GET") assertSameOriginJson(req);
-        if (url.pathname.startsWith("/api/change-sets") && options.agentToken) assertAgentToken(req, options.agentToken);
+        if (/^\/api\/(change-sets|targets)(\/|$)/.test(url.pathname) && options.agentToken) assertAgentToken(req, options.agentToken);
         const body = req.method === "POST" ? await readJson(req) : {};
         const result = await route(options, req.method ?? "GET", url.pathname, body);
         return send(res, 200, result);
@@ -74,6 +74,17 @@ async function route(o: ApiOptions, method: string, path: string, body: Record<s
       sandbox: o.sandbox ? { outage: o.sandbox.outage, clock_offset_minutes: o.sandbox.clockOffsetMinutes } : null,
       inbox: engine.list().sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0)),
     };
+  }
+
+  // Current state of one target, for adapters (e.g. the Claude Code hook) that must turn
+  // "set labels to X" into explicit add/remove actions before proposing them.
+  if (method === "GET" && first === "targets" && parts.length === 6 && parts[1] === "github" && parts[4] === "issues") {
+    const [, , owner, repo, , num] = parts;
+    const number = Number(num);
+    if (!/^[A-Za-z0-9-]+$/.test(owner!) || !/^[A-Za-z0-9._-]+$/.test(repo!) || !Number.isInteger(number) || number < 1) {
+      throw new HttpError(400, "bad_request", "invalid issue reference");
+    }
+    return engine.readTarget("github", { kind: "github.issue", owner: owner!, repo: repo!, number });
   }
 
   // Agent endpoints, called through the SDK: submit a change set, then poll its status.

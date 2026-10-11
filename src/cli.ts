@@ -10,10 +10,11 @@ import { GitHubIssuesConnector } from "./github/connector.ts";
 import { RestGitHub, type TokenProvider } from "./github/rest.ts";
 import { startServer } from "./server/serve.ts";
 import { statusCommand, submitCommand } from "./sdk/cli-commands.ts";
+import { claudeCodeHookCommand } from "./adapters/claude-code/command.ts";
 
 const HELP = `${BRAND.productName}, Phase 0 prototype
 
-Usage: ${BRAND.cli} <demo|serve|submit|status> [options]
+Usage: ${BRAND.cli} <demo|serve|submit|status|hook> [options]
 
   demo   Runs the Phase 0 demo in the terminal: grouped review, exactly-once
          commit under retry, post-write verification, reviewable compensation
@@ -25,6 +26,9 @@ Usage: ${BRAND.cli} <demo|serve|submit|status> [options]
                     Exit codes: 0 verified (or submitted without --wait),
                     3 decided but not verified, 4 timed out, 1 error.
   status <id>       Prints a transaction's agent-facing status (exit 5 = still waiting).
+  hook claude-code  Claude Code PreToolUse hook (experimental): routes GitHub issue
+                    writes through review. Reads the hook JSON on stdin. See
+                    adapters/claude-code/README.md.
 
 Without --repo it runs against an in-memory GitHub simulation and makes no
 network calls. With --repo it creates four issues in that repository and
@@ -74,6 +78,14 @@ async function main(argv: string[]): Promise<number> {
     },
   });
   const command = positionals[0] ?? "demo";
+  if (command === "hook") {
+    if (positionals[1] !== "claude-code") {
+      console.error("usage: hook claude-code (reads the PreToolUse JSON on stdin)");
+      return 1;
+    }
+    return claudeCodeHookCommand();
+  }
+
   if (values.help || !["demo", "serve", "submit", "status"].includes(command)) {
     console.log(HELP);
     return values.help ? 0 : 1;

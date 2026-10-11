@@ -20,6 +20,7 @@ import {
   type Receipt,
   type ReceiptAction,
   type RecoveryClass,
+  type ResourceRef,
   type Revision,
   type RiskAssessment,
   type Snapshot,
@@ -146,6 +147,11 @@ export class Engine {
       created_at: tx.created_at,
       approval_expires_at: active?.expires_at ?? null,
     };
+  }
+
+  /** Reads a target's current state through its connector, for adapters that must translate "replace" semantics into explicit actions. */
+  async readTarget(connectorId: string, target: ResourceRef): Promise<Snapshot> {
+    return this.#connector(connectorId).read(target);
   }
 
   transactionRisk(tx: Transaction): RiskAssessment {

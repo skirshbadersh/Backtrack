@@ -1,5 +1,5 @@
 import { EngineError } from "../errors.ts";
-import type { ChangeSetInput, Receipt } from "../types.ts";
+import type { ChangeSetInput, IssueRef, Receipt, Snapshot } from "../types.ts";
 import { validateChangeSet } from "../validate.ts";
 import type { AgentOutcome, AgentStatus, ApiErrorBody, SubmitResponse } from "./protocol.ts";
 
@@ -86,6 +86,12 @@ export class ReviewClient {
 
   status(transactionId: string, signal?: AbortSignal): Promise<AgentStatus> {
     return this.#request<AgentStatus>("GET", `/api/change-sets/${encodeURIComponent(transactionId)}`, undefined, signal);
+  }
+
+  /** Current state of a GitHub issue as the server's connector reads it. */
+  readIssue(ref: Omit<IssueRef, "kind">): Promise<Snapshot> {
+    const path = ["github", ref.owner, ref.repo, "issues", String(ref.number)].map(encodeURIComponent).join("/");
+    return this.#request<Snapshot>("GET", `/api/targets/${path}`);
   }
 
   async getReceipt(transactionId: string): Promise<Receipt | null> {

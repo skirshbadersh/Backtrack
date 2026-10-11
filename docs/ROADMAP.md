@@ -42,12 +42,12 @@ Ordered by dependency. Items 1–5 need no name, so they can start now.
 - CLI: `bt-demo submit file.json [--wait]`, which prints the decision and receipt.
 - Reuse `validateChangeSet` (`src/validate.ts`) client-side for early errors.
 
-**3. Claude Code PreToolUse hook for dogfooding (C, ~1 day).** PRD Days 7–10: "dogfood the Claude Code hook daily".
+**3. Claude Code PreToolUse hook for dogfooding (C, ~1 day). ✅ Done Oct 11:** `bt-demo hook claude-code`, see `adapters/claude-code/README.md`. Changed from the plan: the hook always denies the original call and the engine performs the reviewed write, so nothing is written twice or unverified. PRD Days 7–10: "dogfood the Claude Code hook daily".
 - `adapters/claude-code/hook.ts` maps a deferred GitHub-issue tool call to a one-action change set through the SDK. It exits non-zero (blocking the tool) unless the transaction ends `verified`.
 - Includes a dogfooding log of confusion points (`docs/dogfood-log.md`, F fills it in).
 - Marked experimental; no other adapters in Phase 0, per scope.
 
-**4. `npx` packaging (C, ~0.5 day, publish gated on the name).**
+**4. `npx` packaging (C, ~0.5 day, publish gated on the name). ✅ Done Oct 11:** `src/brand.ts`, `npm run test:pack`.
 - Make `npm pack` produce a working tarball (`dist` + `web`, a `prepare` build) and test `npx ./pkg.tgz demo` and `serve` in CI.
 - Keep the product name in one constant (`src/brand.ts`) used by the CLI, page title and User-Agent, so the rename is a single edit.
 
