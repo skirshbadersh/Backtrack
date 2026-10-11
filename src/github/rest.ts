@@ -1,3 +1,4 @@
+import { BRAND } from "../brand.ts";
 import { GitHubHttpError, type GitHubTransport, type RawIssue, type TransportResult } from "./transport.ts";
 
 export type TokenProvider = () => Promise<string>;
@@ -19,7 +20,7 @@ export class RestGitHub implements GitHubTransport {
   constructor(options: RestOptions) {
     this.#token = options.token;
     this.#baseUrl = (options.baseUrl ?? "https://api.github.com").replace(/\/$/, "");
-    this.#userAgent = options.userAgent ?? "bt-prototype";
+    this.#userAgent = options.userAgent ?? BRAND.userAgent;
     this.#fetch = options.fetch ?? fetch;
   }
 

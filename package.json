@@ -22,7 +22,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "check": "npm run typecheck && npm test",
-    "test:e2e": "node --test --test-concurrency=1 e2e/*.e2e.ts"
+    "test:e2e": "node --test --test-concurrency=1 e2e/*.e2e.ts",
+    "prepack": "npm run build",
+    "test:pack": "node scripts/pack-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

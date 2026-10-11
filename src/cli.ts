@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { BRAND } from "./brand.ts";
 import { SEED_ISSUES, triageChangeSet, type SeedIssue } from "./demo/fixture.ts";
 import { runDemo, type DemoOptions } from "./demo/run.ts";
 import { Engine } from "./engine.ts";
@@ -10,7 +11,9 @@ import { RestGitHub, type TokenProvider } from "./github/rest.ts";
 import { startServer } from "./server/serve.ts";
 import { statusCommand, submitCommand } from "./sdk/cli-commands.ts";
 
-const HELP = `Usage: bt-demo <demo|serve|submit|status> [options]
+const HELP = `${BRAND.productName}, Phase 0 prototype
+
+Usage: ${BRAND.cli} <demo|serve|submit|status> [options]
 
   demo   Runs the Phase 0 demo in the terminal: grouped review, exactly-once
          commit under retry, post-write verification, reviewable compensation

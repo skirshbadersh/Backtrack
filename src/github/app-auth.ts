@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { BRAND } from "../brand.ts";
 import type { TokenProvider } from "./rest.ts";
 
 interface AppAuthOptions {
@@ -29,7 +30,7 @@ export function githubAppTokenProvider(options: AppAuthOptions): TokenProvider {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${appJwt(options.appId, options.privateKeyPem, now())}`,
         "x-github-api-version": "2022-11-28",
-        "user-agent": "bt-prototype",
+        "user-agent": BRAND.userAgent,
         "content-type": "application/json",
       },
       body: JSON.stringify({ permissions: { issues: "write", metadata: "read" } }),

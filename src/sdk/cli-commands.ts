@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { BRAND } from "../brand.ts";
 import { ReviewClient, SdkError, type Decision } from "./client.ts";
 import type { AgentStatus } from "./protocol.ts";
 
@@ -17,7 +18,7 @@ export interface AgentCliOptions {
 export async function submitCommand(file: string | undefined, o: AgentCliOptions): Promise<number> {
   const log = o.log ?? ((l: string) => console.log(l));
   if (!file) {
-    log("usage: bt-demo submit <change-set.json | -> [--wait] [--server url] [--token t]");
+    log(`usage: ${BRAND.cli} submit <change-set.json | -> [--wait] [--server url] [--token t]`);
     return EXIT.error;
   }
   const changeSet = JSON.parse(readFileSync(file === "-" ? 0 : file, "utf8"));
@@ -47,7 +48,7 @@ export async function submitCommand(file: string | undefined, o: AgentCliOptions
 export async function statusCommand(id: string | undefined, o: AgentCliOptions): Promise<number> {
   const log = o.log ?? ((l: string) => console.log(l));
   if (!id) {
-    log("usage: bt-demo status <transaction-id> [--server url] [--token t]");
+    log(`usage: ${BRAND.cli} status <transaction-id> [--server url] [--token t]`);
     return EXIT.error;
   }
   try {
