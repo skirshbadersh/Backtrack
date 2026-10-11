@@ -11,18 +11,22 @@
     "bt-demo": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "web"
   ],
   "scripts": {
     "demo": "node src/cli.ts demo",
+    "serve": "node src/cli.ts serve",
     "cli": "node src/cli.ts",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "test:e2e": "node --test --test-concurrency=1 e2e/*.e2e.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "playwright-core": "1.56.1",
     "typescript": "5.9.3"
   }
 }

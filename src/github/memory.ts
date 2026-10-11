@@ -18,6 +18,8 @@ export class MemoryGitHub implements GitHubTransport {
   beforeWrite: ((write: Omit<RecordedWrite, "requestId">) => void) | undefined;
   /** Called after every write is applied, before the response returns; throw to simulate a lost response. */
   afterWrite: ((write: RecordedWrite) => void) | undefined;
+  /** When set, every read and write fails with this error, simulating GitHub being unreachable. */
+  outage: Error | undefined;
 
   #issues = new Map<string, RawIssue>();
   #comments = new Map<string, string[]>();
@@ -52,10 +54,12 @@ export class MemoryGitHub implements GitHubTransport {
   }
 
   async getIssue(owner: string, repo: string, number: number): Promise<RawIssue> {
+    if (this.outage) throw this.outage;
     return structuredClone(this.#issue(owner, repo, number));
   }
 
   async listCommentBodies(owner: string, repo: string, number: number): Promise<string[]> {
+    if (this.outage) throw this.outage;
     this.#issue(owner, repo, number);
     return this.comments(owner, repo, number);
   }
@@ -122,6 +126,7 @@ export class MemoryGitHub implements GitHubTransport {
   }
 
   async #write(method: string, path: string, body: unknown, apply: () => void): Promise<TransportResult> {
+    if (this.outage) throw this.outage;
     this.beforeWrite?.({ method, path, body });
     apply();
     const write = { requestId: `MEM-${String(++this.#requestSeq).padStart(4, "0")}`, method, path, body: structuredClone(body) };

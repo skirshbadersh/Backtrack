@@ -16,10 +16,29 @@ taking effect, and the receipt proves the resulting state.
 Requires Node 22.18 or later. There are no runtime dependencies.
 
 ```sh
-npm install        # dev dependencies only (typescript, @types/node)
-npm run demo       # offline, against an in-memory GitHub simulation
-npm test           # 46 tests mapped to the PRD acceptance criteria
+npm install        # dev dependencies only (typescript, @types/node, playwright-core)
+npm run serve      # web review UI at http://127.0.0.1:4317/, offline sandbox
+npm run demo       # the same six beats as a terminal walk-through
+npm test           # 53 engine, connector and API tests mapped to the PRD acceptance criteria
+npm run test:e2e   # 11 browser checks of the review UI (needs Chromium; see e2e/review.e2e.ts)
 ```
+
+## The review UI
+
+`npm run serve` starts a local server (loopback only) with the seeded 12-action change set.
+Agents submit more change sets via `POST /api/change-sets`.
+
+- **Inbox:** every transaction with its status, action and object counts, and risk.
+- **Review:** the agent's evidence (labeled unverified), then one card per affected issue with a before/after table and its actions. Each action shows its risk, recovery class and the effects that stay even after recovery. You can reject or restore any action, edit its parameters, or open the exact normalized payload. Every change creates a new revision, and edits are refused if they were made against a revision you weren't looking at.
+- **Commit approved changes:** a confirmation lists the actions in execution order, the effects that can't be undone, and the payload hash the approval binds to. The UI then approves and commits as two separate recorded events.
+- **Conflict:** previewed, current and proposed values side by side, with a rebase button.
+- **Receipt:** for each action, the proposed, approved, attempted and actual values plus a verdict. A failed verification is shown in red pencil, and you can select executed actions to propose compensation for them. The receipt stub carries the payload hash, approver, receipt hash and ledger head.
+- **Ledger:** the transaction's append-only events, with the hash chain checked.
+- **Simulation controls** (sandbox only, labeled as such): a teammate edit, an agent client retry, a GitHub outage, a 31-minute clock jump to expire approvals, a follow-up change set, and a reset.
+
+Keyboard: `j`/`k` move between actions, `x` rejects or restores, `e` edits, `p` shows parameters, `c` commits, `?` shows help. It also works at phone width and in dark mode. Agent text is only ever inserted as text, and the page ships with a strict Content-Security-Policy. POSTs must be same-origin JSON.
+
+`npm run serve -- --repo you/scratch-repo --yes` runs the UI against a disposable real repository instead (it seeds four issues). As with the demo, this has not yet been run against real GitHub.
 
 Against a **disposable** real repository (it creates four issues and writes to them):
 
@@ -79,7 +98,7 @@ Other properties:
 
 ## Not built yet (Phase 0 remainder and beyond)
 
-- **Web review UI.** The PRD's polished inbox and review screen. The terminal rendering in `render.ts` is a stand-in that shows the same information.
+- **Multiple reviewers and authentication.** The UI records one configured reviewer identity (`--reviewer`). The PRD scopes roles out of the prototype.
 - Durable storage (the engine keeps state in memory) and a database-level commit lock (the current lock only works within one process).
 - Webhooks with delivery dedup, and any adapters (LangGraph, Claude Code hook, gateways). The PRD scopes adapters out of the prototype.
 - A landing page, telemetry and the paid-pilot waitlist from the validation plan.
@@ -97,5 +116,8 @@ src/ledger.ts             append-only hash-chained event log
 src/state.ts              explicit state-machine transitions
 src/validate.ts           fail-closed change-set validation
 src/demo/                 seeded 12-action change set and the six-beat demo
+src/server/               review API (api.ts), sandbox world + simulation controls, HTTP server
+web/                      review UI: index.html, app.css, app.js (no framework, no build step)
+e2e/                      browser walk-through of the review UI
 docs/PRD.md               product requirements (v4.1)
 ```

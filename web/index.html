@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Change review</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to review</a>
+  <div class="shell">
+    <aside class="rail" aria-label="Change-set inbox">
+      <div class="rail-head">
+        <span class="mark" aria-hidden="true">⟂</span>
+        <span class="wordmark">Change review</span>
+        <span class="mode" id="mode">…</span>
+      </div>
+      <nav id="inbox" class="inbox" aria-busy="true">
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      </nav>
+      <section id="sandbox" class="sandbox" hidden></section>
+      <p class="rail-foot" id="whoami"></p>
+    </aside>
+    <main id="main" class="main" tabindex="-1">
+      <div id="notice" class="notice-region" role="status" aria-live="polite"></div>
+      <div id="view">
+        <div class="skeleton-block wide"></div>
+        <div class="skeleton-block"></div>
+        <div class="skeleton-block tall"></div>
+      </div>
+    </main>
+  </div>
+  <dialog id="confirm" class="confirm" aria-labelledby="confirm-title"></dialog>
+  <dialog id="help" class="confirm help" aria-labelledby="help-title">
+    <h2 id="help-title">Keyboard</h2>
+    <dl class="keys">
+      <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Next / previous action</dd>
+      <dt><kbd>x</kbd></dt><dd>Reject or restore the focused action</dd>
+      <dt><kbd>e</kbd></dt><dd>Edit the focused action</dd>
+      <dt><kbd>p</kbd></dt><dd>Show exact parameters</dd>
+      <dt><kbd>c</kbd></dt><dd>Commit approved changes</dd>
+      <dt><kbd>?</kbd></dt><dd>This help</dd>
+    </dl>
+    <div class="confirm-actions"><button class="btn" type="button" data-close>Close</button></div>
+  </dialog>
+</body>
+</html>
