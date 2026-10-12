@@ -11,6 +11,10 @@ grouped change set, a reviewer changes it, the engine binds and commits the appr
 payload exactly once under retry, a reread catches a write that returned 2xx without
 taking effect, and the receipt proves the resulting state.
 
+[![60-second demo: grouped review, exactly-once retry, verification failure, reviewable recovery, stale-state block](docs/media/demo-poster.png)](docs/media/demo.mp4)
+
+*[Watch the 55-second demo](docs/media/demo.mp4). It is recorded from the real UI in sandbox mode with simulated GitHub, and regenerated with `npm run record`.*
+
 ## Run the demo
 
 Requires Node 22.18 or later. There are no runtime dependencies.
